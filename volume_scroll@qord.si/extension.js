@@ -1,34 +1,34 @@
 const Main = imports.ui.main;
 const Clutter = imports.gi.Clutter;
 const Volume = imports.ui.status.volume;
+const PanelMenu = imports.ui.panelMenu;
 const Gio = imports.gi.Gio;
 
-const VOL_ICONS = [
-    'audio-volume-muted-symbolic',
-    'audio-volume-low-symbolic',
-    'audio-volume-medium-symbolic',
-    'audio-volume-high-symbolic'
-];
-
-let panel,
-    panelBinding,
-    volumeControl,
-    volumeStep;
+let panel, panelBinding, volumeControl, volumeStep, aggregateMenu, volumeMenu;
 
 function init() {
   volumeControl = Volume.getMixerControl();
-  volumeStep = 500;
+  volumeStep = 1500;
 
   panel = Main.panel;
   panelBinding = null;
 }
 
 function enable() {
+  aggregateMenu = Main.panel.statusArea.aggregateMenu;
+
+  if (
+    aggregateMenu.hasOwnProperty("_volume") &&
+    aggregateMenu._volume instanceof PanelMenu.SystemIndicator
+  ) {
+    volumeMenu = aggregateMenu._volume._volumeMenu;
+  }
+
   panel.reactive = true;
   if (panelBinding) {
     disable();
   }
-  panelBinding = panel.actor.connect('scroll-event',_onScroll);
+  panelBinding = panel.actor.connect("scroll-event", _onScroll);
 }
 
 function disable() {
@@ -52,7 +52,7 @@ function _getVolumeMax() {
 function _onScroll(actor, event) {
   let volume = volumeControl.get_default_sink().volume;
 
-  switch(event.get_scroll_direction()) {
+  switch (event.get_scroll_direction()) {
     case Clutter.ScrollDirection.UP:
       volume += volumeStep;
       break;
@@ -65,15 +65,14 @@ function _onScroll(actor, event) {
 
   if (volume > _getVolumeMax()) {
     volume = _getVolumeMax();
-  }
-  else if (volume < volumeStep) {
+  } else if (volume < volumeStep) {
     volume = 0;
   }
 
   volumeControl.get_default_sink().volume = volume;
   volumeControl.get_default_sink().push_volume();
 
-  _showVolumeOsd(volume, volume/_getVolumeMax() * 100);
+  _showVolumeOsd();
 
   return Clutter.EVENT_STOP;
 }
@@ -83,19 +82,9 @@ function _onScroll(actor, event) {
  *
  * @see gsd-media-keys-manager.c
  */
-function _showVolumeOsd (level, percent) {
-  let monitor = -1;
-  let n;
-
-  if (level === 0) {
-      n = 0;
-  } else {
-      n = parseInt(3 * percent / 100 + 1);
-      n = Math.max(1, n);
-      n = Math.min(3, n);
-  }
-
-  let icon = Gio.Icon.new_for_string(VOL_ICONS[n]);
-
-  Main.osdWindowManager.show(monitor, icon, null, percent);
+function _showVolumeOsd() {
+  let gicon = new Gio.ThemedIcon({ name: volumeMenu.getIcon() });
+  let level = volumeMenu.getLevel();
+  let maxLevel = volumeMenu.getMaxLevel();
+  Main.osdWindowManager.show(-1, gicon, null, level, maxLevel);
 }
